@@ -19,7 +19,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         # add some noise to the covraiance matrix for numerical stability
-        #covar_x = covar_x.add_jitter(1e-3)
+        covar_x = covar_x.add_jitter(1e-3)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
     @classmethod
