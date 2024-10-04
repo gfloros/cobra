@@ -62,6 +62,7 @@ def run(args):
     
     # Set output format to PNG (to render individual frames)
     scene.render.image_settings.file_format = 'PNG'
+    bpy.context.scene.render.image_settings.color_mode = 'RGBA'
     scene.render.filepath = args.out_images_path+"/frame_"  # Output location for the frames
     bpy.context.scene.render.engine = "CYCLES"
     bpy.context.preferences.addons["cycles"].preferences.compute_device_type = (

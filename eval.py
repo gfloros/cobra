@@ -21,10 +21,16 @@ class eval_args:
     # Points to evaluate each metric
     points_per_metric : list = dataclasses.field(default_factory= lambda: [30000,500,-1,-1,-1])
 
+    # Class name to evaluate
+    class_name: str = "all"
 def run(args):
 
     metrics = Metrics(args.metrics)
-    for class_name in os.listdir(jn(common.RESULTS_PATH)):
+    if args.class_name == "all":
+        classes = os.listdir(jn(common.RESULTS_PATH))
+    else:
+        classes = [args.class_name]
+    for class_name in classes:
         make_dir(jn(common.MODELS_PATH,
                 'est_models',
                 class_name))

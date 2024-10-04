@@ -133,11 +133,11 @@ def train_GPs_per_ref_point(
 
             # set the optimizer and scheduler
             # optimizer = torch.optim.LBFGS(model.parameters(),max_iter=2000,lr=init_lr, line_search_fn="strong_wolfe")
-            optimizer = torch.optim.Adam(model.parameters(), lr=init_lr)
-            # optimizer = torch.optim.Adam([
-            #     {'params': model.covar_module.parameters(), 'lr': init_lr},       # Learning rate for kernel params
-            #     {'params': model.likelihood.parameters(), 'lr': init_lr}  # Learning rate for noise (likelihood)
-            # ])
+            #optimizer = torch.optim.Adam(model.parameters(), lr=init_lr)
+            optimizer = torch.optim.Adam([
+                {'params': model.covar_module.parameters(), 'lr': init_lr},       # Learning rate for kernel params
+                {'params': model.likelihood.parameters(), 'lr': init_lr}  # Learning rate for noise (likelihood)
+            ])
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, "min", factor=0.1, patience=10, min_lr=1e-6
             )
