@@ -1,6 +1,9 @@
 import bpy
 import mathutils
 import numpy as np
+from matplotlib import pyplot as plt
+import tqdm
+import bmesh
 
 def set_world_background(color=(1, 1, 1)):
     """Set the world background color."""
@@ -49,7 +52,7 @@ def add_white_cube(size=10, location=(0, 0, 0)):
     return cube
 
 
-def rotate_points(points, angle_x, angle_y, angle_z):
+def rotate_points(points, angle_x, angle_y, angle_z, displacement=(0, 0, 0)):
     """
     Rotate points around the x, y, and z axes by given angles.
 
@@ -83,10 +86,20 @@ def rotate_points(points, angle_x, angle_y, angle_z):
     # Combine the rotations: first R_z, then R_y, then R_x
     R = R_z @ R_y @ R_x
 
+    # Combine the rotations: first R_z, then R_y, then R_x
+    R = R_z @ R_y @ R_x
+
+    # Apply the displacement by translating the object to the origin
+    points_centered = points - displacement
+
     # Apply the rotation to each point
-    rotated_points = np.dot(points, R.T)  # Transpose the rotation matrix for proper multiplication
+    rotated_points = np.dot(points_centered, R.T)  # Transpose the rotation matrix for proper multiplication
+
+    # Translate the points back to their original position
+    rotated_points += displacement
 
     return rotated_points
+
 def add_empty_at_collection_center(collection_name="SphereCollection"):
     """Create an empty object at the center of the specified collection to use as a tracking target."""
     # Create an empty object
@@ -190,43 +203,59 @@ def clear_scene_objects(exceptions=None):
 
     bpy.ops.object.delete()
 
-def create_sphere_pool(num_spheres, radius=0.005):  # 0.006 for normal
-    """Create a pool of spheres to be reused."""
+def create_sphere_pool(num_spheres, reference_points = None, labels = None, radius=0.006):
+    """Create a pool of spheres to be reused, color-coded by reference point labels."""
+    """Create a pool of spheres using instancing and assign colors by reference point labels."""
     sphere_pool = []
 
-    # Create a new collection to hold the spheres
-    sphere_collection = bpy.data.collections.new("SphereCollection")
-    bpy.context.scene.collection.children.link(sphere_collection)
+    # Create a shared base sphere mesh
+    mesh = bpy.data.meshes.new("SphereMesh")
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=8, radius=radius)
+    bm.to_mesh(mesh)
+    bm.free()
 
-    # Create the base sphere object once
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
-    base_sphere = bpy.context.object
-    base_sphere.name = "BaseSphere"
+    # Get a colormap (e.g., Viridis) and normalize labels
+    colormap = plt.cm.get_cmap('plasma')
+    unique_labels = np.unique(labels)
+    num_classes = len(unique_labels)
+    
+    print(num_classes)
+    # Create a material for each unique label
+    label_to_material = {}
+    for i, label in enumerate(unique_labels):
+        # Generate a unique color for this label
+        color = colormap(i / num_classes)
+        
+        # Create a new material for this label
+        mat = bpy.data.materials.new(name=f"Material_{label}")
+        mat.diffuse_color = (*color[:3], 1)  # Set RGB values from colormap and alpha=1
+        label_to_material[label] = mat
 
-    # Create a new material for the sphere
-    mat = bpy.data.materials.new(name="SphereMaterial")
-    mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get('Principled BSDF')
-    bsdf.inputs['Base Color'].default_value = (0,0.8,1,1)  # Set to specified color
-    base_sphere.data.materials.append(mat)
-
-    # Shade smooth for better appearance
-    bpy.ops.object.shade_smooth()
-
-    # Hide the base sphere (it will not be rendered)
-    base_sphere.hide_set(True)
-    base_sphere.hide_render = True
-
-    # Duplicate spheres to create the pool
-    for i in range(num_spheres):
-        new_sphere = base_sphere.copy()
-        new_sphere.data = base_sphere.data  # Link data block to new sphere
+    # Create spheres using instances and apply corresponding materials
+    for i in tqdm.tqdm(range(num_spheres)):
+        # Create a new sphere object using the shared mesh
+        new_sphere = bpy.data.objects.new(f"Sphere_{i}", mesh)
+        
+        # Set the sphere's location based on reference points
+        new_sphere.location = (0,0,0)
+        
+        # Link the sphere to the current collection
         bpy.context.collection.objects.link(new_sphere)
-        new_sphere.location = (0, 0, 0)  # Place them all initially at the origin
+        
+        # Assign material based on the label
+        label = labels[i]
+        new_sphere.data.materials.clear()  # Clear existing materials
+        print(np.array(label_to_material[label].diffuse_color))
+        new_sphere.data.materials.append(label_to_material[label])  # Assign new material
+        
+        # Force update the object in the scene to ensure changes are applied
+        new_sphere.update_tag(refresh={'OBJECT', 'DATA'})
+        
         sphere_pool.append(new_sphere)
 
-        # Add each new sphere to the collection
-        sphere_collection.objects.link(new_sphere)
+    # Update the scene to reflect changes
+    bpy.context.view_layer.update()
 
     return sphere_pool
 

@@ -71,12 +71,20 @@ def sample_points_with_seed(points, num_samples, seed):
     sampled_points = points[indices]
     return sampled_points
 
-def sample_visible_surface(num_sample_centers, mesh_path, num_train, num_test, model_class,model_name):
+def sample_visible_surface(num_sample_centers, 
+                           mesh_path, 
+                           num_train, 
+                           num_test, 
+                           model_class,
+                           model_name,
+                           normalize):
     
     # Load triangle mesh
     mesh_legacy = o3d.io.read_triangle_mesh(mesh_path)
-    mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh_legacy)
     
+    if normalize:
+        mesh_legacy.vertices = o3d.utility.Vector3dVector(fitModel2UnitSphere(np.asarray(mesh_legacy.vertices),buffer=1.3))
+    mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh_legacy)
     # Create raycasting scene
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(mesh)

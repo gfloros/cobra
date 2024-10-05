@@ -4,10 +4,13 @@ import bpy
 import dataclasses
 import numpy as np
 import open3d as o3d
-from utils.model_3d import fitModel2UnitSphere
+from utils.model_3d import fitModel2UnitSphere, findCentersKmeans
 from utils.vis_utils import *
 import tqdm
+import common
 from utils.io import stdout_redirected
+import pickle
+from os.path import join as jn
 
 @dataclasses.dataclass
 class render_args:
@@ -26,8 +29,8 @@ def run(args):
     clear_scene_objects(exceptions=[bpy.context.scene.camera.name])
     setup_gpu_rendering()
     # Create a pool of spheres
-    sphere_pool = create_sphere_pool(args.num_points)
-    set_world_background()
+    
+    #set_world_background()
     #add_empty_at_collection_center()
 
     pcd = o3d.io.read_point_cloud(args.input_pcd)
@@ -35,20 +38,32 @@ def run(args):
     light = bpy.data.lights.get("Light")
     light.energy = 1000  # Adjust intensity as needed
     light = bpy.data.objects.get("Light")
-    light.location = (0, 0, 10)
+    #light.location = (0, 0, 10)
     camera = bpy.context.scene.camera
     camera.data.clip_start = 1  # Set near clipping plane
     camera.data.clip_end = 10000      # Set far clipping plane
-    camera.location = (0,3, 0)
+    camera.location = (0,3, 0.3)
     camera.rotation_euler = (np.radians(90), 0, np.radians(180))
-    points = rotate_points(points, angle_x=70,angle_y=0,angle_z=0)
+    points = rotate_points(points, angle_x=90,angle_y=0,angle_z=0)
 
     # Fit the model to the unit sphere
     points = fitModel2UnitSphere(points, buffer=1.03)
     np.random.shuffle(points)
     points = points[:args.num_points]
+
+    with open(
+            jn(common.RESULTS_PATH, "bunny","bunny", "c6", "kmeans.pkl"), "rb"
+        ) as f:
+            kmeans = pickle.load(f)
+    ref_points = kmeans.cluster_centers_
+    class_idxs = kmeans.predict(points.astype("double"))
+    
+    print(class_idxs)
+    points = points + np.array([0, -0.5, 0.3])
+    sphere_pool = create_sphere_pool(args.num_points, reference_points=ref_points,labels=class_idxs)
+
     place_spheres(points,sphere_pool)
-    add_white_cube(size=20, location=(0, 0, 9.3))
+    #add_white_cube(size=20, location=(0, 0, 9.3))
     # setup_circular_camera_path(radius=5,
     #                            location=(0, 0, 0),
     #                            init_camera_position=(0, 5, 3),
@@ -86,7 +101,7 @@ def run(args):
         if i == 0:
             points = rotate_points(points, angle_x=0,angle_y=0,angle_z=0)
         else:
-            points = rotate_points(points, angle_x=0,angle_y=0,angle_z=(360/args.num_frames))
+            points = rotate_points(points, angle_x=0,angle_y=0,angle_z=(360/args.num_frames), displacement=(0, -0.5, 0.3))
         place_spheres(points,sphere_pool)
         scene.render.filepath = args.out_images_path+"/frame_" + str(i)
         with stdout_redirected():

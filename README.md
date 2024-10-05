@@ -10,7 +10,7 @@ Terzakis<sup>2</sup>](https://github.com/terzakig), [Maria Pateraki<sup>1,2</sup
 
 [![arXiv link](https://img.shields.io/badge/arXiv-2404.16471-B31B1B.svg)](https://arxiv.org/abs/2404.16471)
 
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Visit%20Site-brightgreen?style=for-the-badge&logo=github)](https://pansap99.github.io/COBRAv1.2s/)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Visit%20Site-brightgreen?style=for-the-badge&logo=github)](https://pansap99.github.io/COBRAv1.2/)
 
 **Abstract**: We present a generic algorithm for scoring pose estimation methods that rely on single image semantic analysis. The algorithm employs a lightweight putative shape representation using a combination of multiple Gaussian Processes. Each Gaussian Process (GP) yields distance normal distributions from multiple reference points in the object’s coordinate system to its surface, thus providing a geometric evaluation framework for scoring predicted poses. Our confidence measure comprises the average mixture probability of pixel back-projections onto the shape template. In the reported experiments, we compare the accuracy of our GP based representation of objects versus the actual geometric models and demonstrate the ability of our method to capture the influence of outliers as opposed to the corresponding intrinsic measures that ship with the segmentation and pose estimation methods.
 
@@ -98,7 +98,19 @@ To evaluate the infered point clouds against the ground truth and compute the me
 python eval.py --class_name class_name
 ```
 Again a full list of the subcomands can be found by running ```python eval.py --help```. By running this script the best models (i.e. the results for the optimal number of reference points with respect to best metric's error) will be exctracted as .ply files in ```./data/models/est_models/{class_name}```.
-
+The total metrics will be saved under ```./data/results/{class_name}/total_scores.csv``` and they will also be printed in the terminall.
+```
+        Chairs Statistics          
+┏━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric    ┃   Mean    ┃  Median   ┃
+┡━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ cd        │ 0.000194  │ 0.000191  │
+│ emd       │ 0.017624  │ 0.014774  │
+│ precision │ 83.789200 │ 83.322800 │
+│ recall    │ 91.646533 │ 91.149200 │
+│ f1_score  │ 87.529484 │ 88.061813 │
+└───────────┴───────────┴───────────┘
+```
 # Point cloud visualization
 
 To visualize the output point clouds you can run:

@@ -24,6 +24,8 @@ class sample_points_args:
     # path to original meshes folder
     data_path: str = common.MODELS_PATH + "/original"
 
+    # normalize the point cloud
+    normalize: bool = False
     # Number of sampling points for train and test splits
     num_samples: List[int] = dataclasses.field(default_factory=lambda: [10000, 250000])
 
@@ -48,6 +50,7 @@ def run(args):
                 num_test=args.num_samples[1],
                 model_class=args.class_name,
                 model_name=model,
+                normalize=args.normalize,
             )
         else:
             sample_points_from_mesh(
