@@ -4,6 +4,7 @@ import dataclasses
 from rich.console import Console
 from contextlib import contextmanager
 import sys
+import pandas as pd
 
 CONSOLE = Console()
 
@@ -40,6 +41,10 @@ def load_config(path: str):
 def log_event(message):
     if DEBUG:
         CONSOLE.log(message)
+
+def loadEstimatorResults(path):
+
+    return pd.read_csv(path)
 
 @contextmanager
 def stdout_redirected(to=os.devnull):

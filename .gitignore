@@ -2,3 +2,5 @@
 ./data/models/train/*
 ./data/models/test/*
 data/
+make_gif.sh
+render_gif.py

@@ -4,6 +4,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 import tqdm
 import bmesh
+from OpenGL.GL import *
+import cv2 as cv
+from matplotlib import cm
+import open3d as o3d
+import vtk
+from os.path import join as jn
+from pose_vis.camera import PerspectiveCamera
 
 def set_world_background(color=(1, 1, 1)):
     """Set the world background color."""
@@ -203,60 +210,33 @@ def clear_scene_objects(exceptions=None):
 
     bpy.ops.object.delete()
 
-def create_sphere_pool(num_spheres, reference_points = None, labels = None, radius=0.006):
-    """Create a pool of spheres to be reused, color-coded by reference point labels."""
-    """Create a pool of spheres using instancing and assign colors by reference point labels."""
+def create_sphere_pool(num_spheres, radius=0.006): # 0.006 for normal
+    """Create a pool of spheres to be reused."""
     sphere_pool = []
-
-    # Create a shared base sphere mesh
-    mesh = bpy.data.meshes.new("SphereMesh")
-    bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=8, radius=radius)
-    bm.to_mesh(mesh)
-    bm.free()
-
-    # Get a colormap (e.g., Viridis) and normalize labels
-    colormap = plt.cm.get_cmap('plasma')
-    unique_labels = np.unique(labels)
-    num_classes = len(unique_labels)
     
-    print(num_classes)
-    # Create a material for each unique label
-    label_to_material = {}
-    for i, label in enumerate(unique_labels):
-        # Generate a unique color for this label
-        color = colormap(i / num_classes)
-        
-        # Create a new material for this label
-        mat = bpy.data.materials.new(name=f"Material_{label}")
-        mat.diffuse_color = (*color[:3], 1)  # Set RGB values from colormap and alpha=1
-        label_to_material[label] = mat
+    # Create the base sphere object once
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
+    base_sphere = bpy.context.object
+    base_sphere.name = "BaseSphere"
+    
+    # Add material to the base sphere
+    mat = bpy.data.materials.new(name="SphereMaterial")
+    mat.diffuse_color = (0, 1, 1, 1)  # Set color
+    base_sphere.data.materials.append(mat)
+    bpy.ops.object.shade_smooth()
+    
+    # Hide the base sphere (it will not be rendered)
+    base_sphere.hide_set(True)
+    base_sphere.hide_render = True
 
-    # Create spheres using instances and apply corresponding materials
-    for i in tqdm.tqdm(range(num_spheres)):
-        # Create a new sphere object using the shared mesh
-        new_sphere = bpy.data.objects.new(f"Sphere_{i}", mesh)
-        
-        # Set the sphere's location based on reference points
-        new_sphere.location = (0,0,0)
-        
-        # Link the sphere to the current collection
+    # Duplicate spheres to create the pool
+    for i in range(num_spheres):
+        new_sphere = base_sphere.copy()
+        new_sphere.data = base_sphere.data  # Link data block to new sphere
         bpy.context.collection.objects.link(new_sphere)
-        
-        # Assign material based on the label
-        label = labels[i]
-        new_sphere.data.materials.clear()  # Clear existing materials
-        print(np.array(label_to_material[label].diffuse_color))
-        new_sphere.data.materials.append(label_to_material[label])  # Assign new material
-        
-        # Force update the object in the scene to ensure changes are applied
-        new_sphere.update_tag(refresh={'OBJECT', 'DATA'})
-        
+        new_sphere.location = (0, 0, 0)  # Place them all initially at the origin
         sphere_pool.append(new_sphere)
-
-    # Update the scene to reflect changes
-    bpy.context.view_layer.update()
-
+    
     return sphere_pool
 
 def place_spheres(points, sphere_pool):
@@ -288,3 +268,106 @@ def setup_gpu_rendering():
 
     bpy.context.scene.cycles.samples = 128  # Adjust based on quality/performance needs
     bpy.app.debug_value = 0  # Minimize logging output
+
+
+default_matrix = vtk.vtkMatrix4x4()
+def boundingBoxPerInstance(rot,tr,obj_points,K,obj_id):
+    """Computes the bounding box of each instance present in the image
+    by projecting some known 3D points of the model to the image and finding 
+    the Lower-Left and Upper-Right points of the boudning box by finding the 
+    maximum and minimum of the projected points in image coordinates.
+
+    Args:
+        rot (ND ARRAY): Rotation matrix 3 x 3
+        tr (ND ARRAY): Translation vector 1 x 3
+        obj_points (ND ARRAY): The loaded known 3D points of the model
+        K (ND ARRAY): The calibration matrix
+        obj_id (int): The object's id
+
+    Returns:
+        tuple: Lower-Left,Upper-Right points of the computed bounding box
+    """
+
+    result,_= cv.projectPoints(obj_points,
+                              rot,
+                              tr,
+                              cameraMatrix=K,
+                              distCoeffs=None)
+   
+    # calculate the lower-left and upper-right of the bounding bot
+    LL = (result[:,...,0].min() , result[:,...,1].max())
+    UR = (result[:,...,0].max() , result[:,...,1].min())
+
+    return LL,UR
+def renderPose(vertices,
+               indices,
+               renderer,
+               objID,
+               conf,
+               threshold,
+               resolution,
+               RT,
+               K,
+               savePath,
+               mesh_color= [1.0,0.5,0.31],
+               rgb_image = None):
+    
+
+    camera = PerspectiveCamera(resolution[0],resolution[1])
+    projection = camera.fromIntrinsics(
+        fx = K[0,0],
+        fy = K[1,1],
+        cx = K[0,2],
+        cy = K[1,2],
+        nearP = 1,
+        farP=5000
+    )
+
+    model_ = np.eye(4)
+
+    # configure rendering params
+    uniform_vars = {"objectColor": {"value":mesh_color,"type":'glUniform3fv'}, # 1.0, 0.5, 0.31
+                    "lightColor":{"value": [1.0, 1.0, 1.0],"type":'glUniform3fv'},
+                    "lightPos":{"value": [0.0, 0.0 , 0.0],"type":'glUniform3fv'},
+                    "viewPos":{"value": [0.0, 0.0, 0.0],"type":'glUniform3fv'},
+                    "model":{"value": model_,"type":'glUniformMatrix4fv'},
+                    "view":{"value":RT,"type":'glUniformMatrix4fv'},
+                    "projection":{"value": projection,"type":'glUniformMatrix4fv'},
+                    }
+    LL,UR = boundingBoxPerInstance(RT[:3,:3],RT[:3,-1],vertices,K.reshape(3,3),objID)
+    UL,LR = (LL[0],UR[1]),(UR[0],LL[1])
+
+
+    RT = renderer.cv2gl(RT)
+
+    # adjust lighting position
+    lightPos = np.dot(np.array([RT[0,-1],RT[1,-1],RT[2,-1],1.0]),
+                      np.linalg.inv(RT))
+    
+    # update uniform variables
+    uniform_vars["view"]["value"] = RT
+    uniform_vars["lightPos"]["value"] = [lightPos[0],lightPos[1],lightPos[2]]
+    uniform_vars["viewPos"]["value"] = [-RT[0,-1], -RT[1,-1], -RT[2,-1]]
+
+    renderer.setUniformVariables(renderer.shader_programm,uniform_vars)
+    glBindVertexArray(renderer.VAO)
+    glDrawElements(GL_TRIANGLES, len(indices), GL_UNSIGNED_INT, None)
+
+    renderer.ProjectFramebuffer(renderer.framebuffer,resolution)
+
+    if not rgb_image:
+        mask = renderer.CaptureFramebufferScene(jn(savePath),saveRendered=True)
+    else:
+        mask = renderer.CaptureFramebufferScene(jn(savePath,'test.png'),saveRendered=False)
+        renderer.draw2DBoundingBox(cv.imread(rgb_image).astype(np.float32),
+                                   mask.astype(np.float32),
+                                   str(objID),
+                                   conf=conf,
+                                   savePath=savePath,
+                                   bb=np.array([UL,LR]).astype(int),
+                                   threshold=threshold,
+                                   buildMask=False,
+                                   maskFolder=None,
+                                   opacity=0.6
+                                   )
+        
