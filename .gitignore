@@ -1,6 +1,8 @@
 **__pycache__
-./data/models/train/*
-./data/models/test/*
-data/
-make_gif.sh
-render_gif.py
+/data/models/train/
+/data/models/test/
+/data/results/
+/data/models/est_models/
+/data/est_models/
+/data/models/original/
+/data/models/normalized/

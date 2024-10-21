@@ -4,7 +4,7 @@ import tyro
 from utils.model_3d import *
 import common
 from os.path import join as jn
-from utils.io import load_config, make_dir, Train_args, log_event
+from utils.io import load_config, make_dir, Train_args, log_event, log_debug
 import gpytorch
 from model import ExactGPModel
 import torch
@@ -27,8 +27,6 @@ class Train_args:
     reference_point_selection_method: str = "kmeans"
     # Cluster overlap percentage
     cluster_overlap: float = 0.2
-    # Normalize to unit sphere
-    normalize: bool = True
     # NUmber of steps to train
     num_steps: int = 250
     # Minimum number of reference points
@@ -39,8 +37,6 @@ class Train_args:
     step: int = 2
     # Log loss
     log_loss: bool = False
-    # visualize point clouds
-    vis: bool = False
 
 
 def train_GPs_per_ref_point(
@@ -50,8 +46,6 @@ def train_GPs_per_ref_point(
     reference_point_selection_method: str = "kmeans",
     num_classes: int = 10,
     cluster_overlap: float = 0.2,
-    normalize: bool = True,
-    fit_to_unit_sphere_buffer: float = 1.03,
     num_iters: int = 250,
     init_lr: float = 0.1,
     log_loss: bool = False,
@@ -62,10 +56,6 @@ def train_GPs_per_ref_point(
     points = load_point_cloud(
         jn(common.MODELS_PATH, "train", class_name, train_model) + ".ply"
     )
-
-    if normalize:
-        log_event("Normalizing 3D points...")
-        points = fitModel2UnitSphere(points, buffer=fit_to_unit_sphere_buffer)
 
     # make result dir
     result_path_train_model = jn(
@@ -114,7 +104,7 @@ def train_GPs_per_ref_point(
     # train the gaussian processes
     with gpytorch.settings.max_cg_iterations(cg_iters):
         for cls in range(0, len(centers)):
-            log_event("Training GP model for class " + str(cls))
+            log_debug("Training GP model for class " + str(cls))
 
             # load points of class {cls} to tensor.
             phis_thets_cls_train_t = torch.tensor(phis_thetas_train[cls],dtype=torch.float32, device='cuda')
@@ -150,7 +140,7 @@ def train_GPs_per_ref_point(
                 loss.backward()
 
                 if log_loss:
-                    log_event(
+                    log_debug(
                         "Iter %d/%d - Loss: %.3f  lengthscale: %.3f  noise: %.3f"
                         % (
                             i + 1,
@@ -170,7 +160,7 @@ def train_GPs_per_ref_point(
             trained_gps.append(model)
             likelihoods.append(likelihood)
 
-            log_event(f"[bold][green] Done training for GP model {cls}")
+            log_debug(f"[bold][green] Done training for GP model {cls}")
 
     make_dir(
         jn(
@@ -204,7 +194,6 @@ if __name__ == "__main__":
                 train_GPs_per_ref_point(
                     args.class_name,
                     model.split(".")[0],
-                    normalize=args.normalize,
                     init_lr=args.init_lr,
                     reference_point_selection_method=args.reference_point_selection_method,
                     cluster_overlap=args.cluster_overlap,
@@ -213,4 +202,4 @@ if __name__ == "__main__":
                     log_loss=args.log_loss,
                 )
             pbar.update(1)
-    print("Training complete")
+    log_event("Training complete")

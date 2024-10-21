@@ -12,31 +12,50 @@ from utils.transforms import *
 from utils.model_3d import *
 import torch
 import gpytorch
-from utils.model_3d import fitModel2UnitSphere
+from typing import Tuple
 
 
-def compute_likelihood(point_3D_ref, p3d_observed, sigma=1.0, weight=1):
+def compute_likelihood(
+    point_3D_ref, p3d_observed, sigma=1.0, weight=1
+) -> Tuple[float, float]:
+    """Compute the likelihood of the observed 3D point given the
+    the backrojected 2D input point. The likelihood is computed as a
+    weighted gaussian distribution. If the weight is set to 1, the
+    likelihood is computed as a normal gaussian distribution.
+
+    Args:
+        point_3D_ref (_type_): Predcited 3D point derived from the trained GP.
+        p3d_observed (_type_): Backprojected 3D point.
+        sigma (float, optional): Standart deviation of the tamplate vs
+        the ground truth test points cloud. Defaults to 1.0.
+        weight (int, optional): Posible estimator weight associated
+        with the current precidiction of the 2D-3D correspondece. Defaults to 1.
+
+    Returns:
+        Tuple[float,float]: eu_distance (Euclidean distance between the predicted 3D point and the observed 3D point.)
+                            likelihood (The computed likelihood of the observed 3D point.)
+    """
 
     eu_distance = np.linalg.norm(point_3D_ref - p3d_observed)
     likelihood = weight * mt.exp(-0.5 * (eu_distance**2) / (sigma**2))
-    # likelihood = 1/(mt.sqrt(2*mt.pi  * sigma**2 )) * weight * mt.exp(-0.5 * (eu_distance**2) / (sigma**2))
 
     return eu_distance, likelihood
 
 
-def compute_likelihood_exp(eu_distances, sigma):
-
-    return mt.exp(-0.5 * (eu_distances.mean() ** 2) / (sigma**2))
-
-
-def softmax(x):
-
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
-
-
 class COBRA:
-    def __init__(self, model_path, test_pcd_path, delta) -> None:
+    def __init__(self, model_path: str, test_pcd_path: str, delta: float) -> None:
+        """
+        Initialize the COBRA model. Load the trained GPs and K-means classifiers.
+        Methods:
+            compute_sigma_hat: Compute the STD of errors of the template from the GT point cloud.
+            caclulate_confidence_lower_bound: Compute the confidence lower bound.
+            score_pose: Score input 6D poses.
+
+        Args:
+            model_path (str): Path to the trained model in common.RESULTS_PATH + class_name + model_name.
+            test_pcd_path (str): Path to the GT test point cloud.
+            delta (float): Delta value for the confidence lower bound.
+        """
 
         # load checkpoints with best results
         best_metrics = pd.read_csv(jn(model_path, "best_metrics.csv"))
@@ -61,21 +80,27 @@ class COBRA:
         self.centers = self.kmeans.cluster_centers_
 
         # computing sigma hat
-        self.sigma_hat = self.compute_sigma_hat(
-            jn(test_pcd_path, os.path.basename(model_path)) + ".ply"
-        )
+        self.sigma_hat = self.compute_sigma_hat(test_pcd_path)
+        print("SIGMA HAT: ", self.sigma_hat)
 
         self.conf_lower_bound = self.caclulate_confidence_lower_bound(delta=delta)
         # print("CONF LOWER BOUND: ", self.conf_lower_bound)
 
-    def compute_sigma_hat(self, gt_pcd):
+    def compute_sigma_hat(self, gt_pcd: str) -> float:
+        """Compute the STD of errors of the template from the GT point cloud.
 
-        "Compute the STD of errors of the template from the GT point cloud."
+        Args:
+            gt_pcd (str): Path to the GT test point cloud.
+
+        Returns:
+            float: Computed STD of pair wise distance errors used as the variance
+            for the GP model.
+        """
+
         # load test point cloud
         gt_pcd = o3d.io.read_point_cloud(gt_pcd)
         gt_points = np.asarray(gt_pcd.points)
 
-        gt_points = fitModel2UnitSphere(gt_points, buffer=1.03)
         # classify backprojected points to reference points
         class_idxs = self.kmeans.predict(gt_points.astype("double"))
 
@@ -106,15 +131,20 @@ class COBRA:
         # compute the distances
         distances = np.linalg.norm(xyz_ - gt_points[sorted_indices], axis=1)
 
-        # print(distances.mean() , distances.std())
         return distances.std()
 
-    def caclulate_confidence_lower_bound(self, delta, weights=None):
-        # norm_factor = (1/ (delta**2)) * self.sigma_hat
-        # wsum = self.sigma_hat * (1 - mt.exp(-((delta**2)/(2*self.sigma_hat))))
+    def caclulate_confidence_lower_bound(
+        self, delta: float, weights: NDArray = None
+    ) -> float:
+        """Compute the confidence lower bound.
 
-        # return norm_factor * wsum
+        Args:
+            delta (float): Delta value for the confidence lower bound.
+            weights (NDArray, optional): Pose estimator weights if available. Defaults to None.
 
+        Returns:
+            float: Confidence lower bound.
+        """
         norm_factor = 1 / delta**2
         if weights is not None:
             wsum = np.sum(
@@ -138,7 +168,22 @@ class COBRA:
         RT: NDArray,
         K: NDArray,
         weights: NDArray = None,
-    ):
+    ) -> Tuple[NDArray, NDArray]:
+        """Score input 6D poses. The method backprojects 2D points using the estimate pose
+        and computes the 3D point across the ray with least squares. The method classifies
+        backprojected points to reference points and computes the likelihood of the observed
+        3D point given the the backrojected 2D input point.
+
+        Args:
+            points2D (NDArray): Input 2D points.
+            points3D (NDArray): Corresponding 3D points.
+            RT (NDArray): Estimated pose.
+            K (NDArray): Camera intrinsics.
+            weights (NDArray, optional): Estimator weights if available. Defaults to None.
+
+        Returns:
+            Tuple[NDArray, NDArray]: Likelihoods and distances for each point.
+        """
 
         back_proj_3D = []
         # back-project 2D points using the estimate pose
@@ -174,6 +219,7 @@ class COBRA:
                     xyz_.append(xyz_predicted)
 
         xyz_ = np.concatenate(xyz_, axis=0)
+
         likelihoods = []
         distances = []
 
@@ -185,10 +231,7 @@ class COBRA:
             eu_distance, likelihood = compute_likelihood(
                 xyz_, xyz_ob, sigma=self.sigma_hat, weight=weights[idx]
             )
-            # print(f"Distance: {eu_distance}, Likelihood: {likelihood}")
             likelihoods.append(likelihood)
             distances.append(eu_distance)
-
-        # print(np.array(likelihoods).mean(),np.array(distances).mean())
 
         return np.array(likelihoods), np.array(distances)

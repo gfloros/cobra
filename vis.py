@@ -41,7 +41,7 @@ def run(args):
             points = np.asarray(pcd_.points)
 
             # Fit the model to the unit sphere
-            points = fitModel2UnitSphere(points, buffer=1.03)
+            points = fitModel2UnitSphere(points)
 
             # Apply some rotations to the point cloud
             rotation = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])

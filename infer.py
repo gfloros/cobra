@@ -6,7 +6,7 @@ import common
 from os.path import join as jn
 import pickle
 from utils.model_3d import *
-from utils.io import make_dir, load_config, log_event
+from utils.io import make_dir, load_config, log_event, log_debug
 from model import *
 from utils.metrics import *
 from utils.report import *
@@ -22,14 +22,11 @@ class Infer_args:
     class_name: str
     # reference point selection method
     ref_point_selection_method: str = "kmeans"
-    # Normalize to unit sphere
-    normalize: bool = True
 
 
 def infer(
     class_name: str,
     test_model: str,
-    normalize: bool = True,
     ref_point_selection_method="kmeans",
     metrics: List = [
         "cd",
@@ -44,9 +41,6 @@ def infer(
     points = load_point_cloud(
         jn(common.MODELS_PATH, "test", class_name, test_model.split("/")[0] + ".ply")
     )
-
-    if normalize:
-        points = fitModel2UnitSphere(points, buffer=1.03)
 
     if ref_point_selection_method == "kmeans":
         # load the trained k-means classifier weights for the specific model
@@ -77,7 +71,7 @@ def infer(
     metrics_per_class_dict = {}
     # load the trained gps
     for rfp in range(0, ref_points.shape[0]):
-        log_event(f"[bold][green] Making predictions for reference point {rfp}")
+        log_debug(f"[bold][green] Making predictions for reference point {rfp}")
 
         gp_model_path = jn(
             common.RESULTS_PATH, class_name, test_model, "gps", f"gp_model_{rfp}.pth"
@@ -119,7 +113,7 @@ def infer(
                 )
             )
 
-    log_event(["[bold][green] Done making predictions"])  
+    log_debug(["[bold][green] Done making predictions"])  
     make_dir(jn(common.RESULTS_PATH,class_name,test_model,'infer')) 
     write_ply(
         np.concatenate(predicted_3d_points, axis=0),
@@ -127,7 +121,7 @@ def infer(
             common.RESULTS_PATH, class_name, test_model, "infer", "est_points.ply"
         ),
     )
-    log_event("[bold][green] Exporting predicted 3D points...")
+    log_debug("[bold][green] Exporting predicted 3D points...")
 
     torch.cuda.empty_cache()
     gc.collect()
@@ -163,6 +157,5 @@ if __name__ == "__main__":
                             args.class_name,
                             model.split(".")[0] + "/" + cls,
                             ref_point_selection_method=args.ref_point_selection_method,
-                            normalize=args.normalize,
                         )
             pbar.update(1)

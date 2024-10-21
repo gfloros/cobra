@@ -5,10 +5,9 @@ from rich.console import Console
 from contextlib import contextmanager
 import sys
 import pandas as pd
+import common
 
 CONSOLE = Console()
-
-DEBUG = False
 
 @dataclasses.dataclass
 class Train_args:
@@ -39,7 +38,10 @@ def load_config(path: str):
     return config
 
 def log_event(message):
-    if DEBUG:
+        CONSOLE.log(message)
+
+def log_debug(message):
+    if common.DEBUG:
         CONSOLE.log(message)
 
 def loadEstimatorResults(path):

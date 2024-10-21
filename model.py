@@ -34,8 +34,8 @@ class ExactGPModel(gpytorch.models.ExactGP):
         likelihood = gpytorch.likelihoods.GaussianLikelihood()
 
         # Restore the training inputs
-        train_x = torch.tensor(checkpoint["train_x"]).float().cuda()
-        train_y = torch.tensor(checkpoint["train_y"]).float().cuda()
+        train_x = torch.tensor(checkpoint["train_x"],dtype=torch.float32, device='cuda')
+        train_y = torch.tensor(checkpoint["train_y"],dtype=torch.float32, device='cuda')
 
         # Create an instance of the model with placeholder data
         model = cls(train_x, train_y, likelihood, kernel)

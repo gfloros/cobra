@@ -38,7 +38,6 @@ def run(args):
             if os.path.isdir(jn(common.RESULTS_PATH,class_name,model)):
                 
                 pcd_gt = load_point_cloud(jn(common.MODELS_PATH,"test",class_name,model+'.ply'))
-                pcd_gt = fitModel2UnitSphere(pcd_gt,buffer=1.03)
                 
                 min_cd_error = float('inf')
                 best_rfp_metrics = None
