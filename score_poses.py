@@ -8,7 +8,6 @@ from os.path import join as jn
 import json
 import glob
 import os
-from utils.vis_utils import *
 from utils.io import loadEstimatorResults
 from pose_vis.Renderer import Renderer
 from utils.model_3d import load_mesh
@@ -59,23 +58,25 @@ def run(args):
         delta=args.delta,
     )
 
-
-    # initialize renderer
-    renderer = Renderer(bufferSize=(640,480))
-    renderer.load_shaders("./utils/vis/shaders/basic_lighting_vrt.txt",
-                        "./utils/vis/shaders/basic_lighting.txt",
-                        None)
-    #vertices, indices = load_mesh(jn(common.MODELS_PATH,'normalized',args.class_name,args.model+'.ply'))
-    #vertices, indices = np.asarray(vertices), np.asarray(indices)
-    vertices, indices = load_model(jn(common.MODELS_PATH,'normalized',args.class_name,args.model+'.ply'))
-    renderer.create_data_buffers(vertices,indices,attrs=[2,3,4])
-    renderer.CreateFramebuffer(GL_RGB32F,GL_RGBA,GL_FLOAT)
+    if args.visualize:
+        from utils.vis_utils import renderPose
+        from OpenGL.GL import GL_RGB32F,GL_RGBA,GL_FLOAT
+        # initialize renderer
+        renderer = Renderer(bufferSize=(640,480))
+        renderer.load_shaders("./utils/vis/shaders/basic_lighting_vrt.txt",
+                            "./utils/vis/shaders/basic_lighting.txt",
+                            None)
+        #vertices, indices = load_mesh(jn(common.MODELS_PATH,'normalized',args.class_name,args.model+'.ply'))
+        #vertices, indices = np.asarray(vertices), np.asarray(indices)
+        vertices, indices = load_model(jn(common.MODELS_PATH,'normalized',args.class_name,args.model+'.ply'))
+        renderer.create_data_buffers(vertices,indices,attrs=[2,3,4])
+        renderer.CreateFramebuffer(GL_RGB32F,GL_RGBA,GL_FLOAT)
 
     score_dict ={}
     likelihoods_list = []
     for img in images:
-
-        renderer.glConfig()
+        if args.visualize:
+            renderer.glConfig()
         corr = jn(model_score_path,'corrs',str(int(os.path.basename(img).split(".")[0]))+"_corr.txt")
         
         # load the corr file into a pandas dataframe
@@ -106,20 +107,21 @@ def run(args):
                                                  K,
                                                  estimator_weights)
         likelihoods_list.append([pose_id,likelihoods.mean()])
-        # visualize and save results
-        renderPose(vertices.reshape(-1,3),
-                indices,
-                renderer,
-                objID=args.model,
-                conf=likelihoods.mean(),
-                threshold=cobra.conf_lower_bound,
-                resolution=(640,480),
-                RT= RT,
-                K = K.reshape(3,3),
-                savePath= jn(model_score_path,'vis',pose_id) + ".png",
-                mesh_color=[1.0, 0.5, 0.31],
-                rgb_image=img
-                )
+        if args.visualize:
+            # visualize and save results
+            renderPose(vertices.reshape(-1,3),
+                    indices,
+                    renderer,
+                    objID=args.model,
+                    conf=likelihoods.mean(),
+                    threshold=cobra.conf_lower_bound,
+                    resolution=(640,480),
+                    RT= RT,
+                    K = K.reshape(3,3),
+                    savePath= jn(model_score_path,'vis',pose_id) + ".png",
+                    mesh_color=[1.0, 0.5, 0.31],
+                    rgb_image=img
+                    )
     score_dict["Confidence Lower Bound"] = cobra.conf_lower_bound
     score_dict["scores"] = [likelihoods_list]
     with open(jn(model_score_path,'scores.json'),'w') as f:
