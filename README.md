@@ -57,6 +57,7 @@ We define virtual cameras around the object and ray-casting to acquire points ly
 python preprocessing.py \
 --class-name your_class_name \ 
 --num-samples 10000 250000 \ #samples for train and test pcds
+--normalize
 ```
 
 After runing the command, the folders ```./data/models/train/{your_class_name}``` and ```./data/models/test/{your_class_name}``` will be created containing the train and test point clouds for your models.
@@ -70,7 +71,6 @@ python train.py \
 --class-name your_class_name \
 --init-lr 0.1
 --cluster-overlap 0.2 
---normalize \ 
 --num-steps \ 
 --min-num-classes \ 
 --max-num-classes \ 
