@@ -29,6 +29,9 @@ class score_args:
     # use estimator weights
     use_estimator_weights: bool = False
 
+    # Visualization
+    visualize: bool = False
+
 
 def run(args):
 
@@ -68,6 +71,8 @@ def run(args):
     renderer.create_data_buffers(vertices,indices,attrs=[2,3,4])
     renderer.CreateFramebuffer(GL_RGB32F,GL_RGBA,GL_FLOAT)
 
+    score_dict ={}
+    likelihoods_list = []
     for img in images:
 
         renderer.glConfig()
@@ -100,6 +105,7 @@ def run(args):
                                                  RT[:3,:],
                                                  K,
                                                  estimator_weights)
+        likelihoods_list.append([pose_id,likelihoods.mean()])
         # visualize and save results
         renderPose(vertices.reshape(-1,3),
                 indices,
@@ -114,6 +120,10 @@ def run(args):
                 mesh_color=[1.0, 0.5, 0.31],
                 rgb_image=img
                 )
+    score_dict["Confidence Lower Bound"] = cobra.conf_lower_bound
+    score_dict["scores"] = [likelihoods_list]
+    with open(jn(model_score_path,'scores.json'),'w') as f:
+            json.dump(score_dict,f,indent=4)
         
 if __name__ == "__main__":
     args = tyro.cli(score_args)
