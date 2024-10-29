@@ -319,8 +319,34 @@ def fitModel2UnitSphere(points, buffer=1.03):
 
     return points
 
+def furthest_point_sampling(points, num_points):
+    """Sample points from a point cloud using the furthest point sampling algorithm.
 
-def findCentersKmeans(points, clusters, savePath=None):
+    Args:
+        points (NDArray): Point cloud points.
+        num_points (int): Number of points to sample.
+
+    Returns:
+        NDArray: Sampled points.
+    """
+    # initialize the list of indices
+    sampled_idxs = [np.random.randint(len(points))]
+
+    # loop over the number of points to sample
+    for _ in range(1, num_points):
+        # compute the distance between the sampled points and all other points
+        distances = np.linalg.norm(
+            points - points[sampled_idxs[-1]], axis=1
+        )
+
+        # find the index of the point with the largest minimum distance
+        idx = np.argmax(np.min(distances, axis=0))
+
+        # add the index to the list
+        sampled_idxs.append(idx)
+
+    return points[sampled_idxs]
+def findCentersKmeans(points, clusters, init_method='k-means++', savePath=None):
     """Finds the centers of the clusters using KMeans.
 
     Args:
@@ -332,7 +358,11 @@ def findCentersKmeans(points, clusters, savePath=None):
     Returns:
         tuple(NDArray, NDArray, KMeans): Labels, centers and KMeans object.
     """
-    kmeans = KMeans(n_clusters=clusters, random_state=0, n_init="auto").fit(points)
+    if init_method == 'k-means++':
+        kmeans = KMeans(n_clusters=clusters, init = init_method).fit(points)
+    elif init_method == 'furthest_point':
+        init_centers = furthest_point_sampling(points, clusters)
+        kmeans = KMeans(n_clusters=clusters, init=init_centers).fit(points)
     if savePath is not None:
         with open(os.path.join(savePath, "kmeans.pkl"), "wb") as f:
             pickle.dump(kmeans, f)
