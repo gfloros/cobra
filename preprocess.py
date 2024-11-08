@@ -84,6 +84,7 @@ def run(args):
         log_event(f"Sampling points for model {model}")
         # sample training points
         if args.visible:
+            log_event("Sampling training points")
             sample_visible_surface(
                 num_sample_centers=100,
                 mesh_path=jn(
@@ -96,6 +97,7 @@ def run(args):
                 model_class=args.class_name,
                 scale_fn=1.0 if args.normalize else get_model_size,
                 model_name=model,
+                save_sampling_positions=True,
             )
         else:
             sample_points_from_mesh(

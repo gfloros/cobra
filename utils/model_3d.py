@@ -10,6 +10,7 @@ import common
 from typing import Tuple, Callable, Union
 from numpy.typing import NDArray
 from os.path import join as jn
+from utils.io import log_event
 
 
 def ray_intersects_mesh_twice_vtk(p, c, overlapping_radius, obbtree):
@@ -69,8 +70,10 @@ def get_model_size(mesh_path: str) -> float:
 
     minbb = np.asarray(model.vertices).min(axis=0)
     maxbb = np.asarray(model.vertices).max(axis=0)
+    log_event(f"minbb = {minbb}, maxbb = {maxbb}")
 
     diameter = np.linalg.norm(maxbb - minbb)
+    log_event(f"diameter = {diameter}")
 
     return diameter
 
@@ -142,20 +145,23 @@ def sample_visible_surface(
         None
     """
     # Load triangle mesh
+    log_event("Loading triangle mesh")
     mesh_legacy = o3d.io.read_triangle_mesh(mesh_path)
     mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh_legacy)
     # Create raycasting scene
+    log_event("Creating raycasting scene")
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(mesh)
 
     # Generate camera positions on a sphere
+    log_event("Generating camera positions on a sphere")
     if not callable(scale_fn):
         scale = 1.3
     else:
         scale = scale_fn(mesh_path)
     camera_positions = fibonacci_sphere(samples=num_sample_centers,
                                         scale = scale,
-                                        savePath = jn(common.MODELS_PATH, "camera_positions.xyz") if save_sampling_positions else None)
+                                        savePath = jn(common.MODELS_PATH, "camera_positions.ply") if save_sampling_positions else None)
 
     # np.savetxt("camera_positions.xyz", camera_positions, delimiter=" ")
     # Parameters for the pinhole camera model
@@ -166,6 +172,7 @@ def sample_visible_surface(
 
     all_points = []
 
+    log_event("Performing raycasting for each camera")
     for eye in tqdm.tqdm(
         camera_positions, total=camera_positions.shape[0], desc="Raycasting..."
     ):
@@ -191,21 +198,28 @@ def sample_visible_surface(
         )
         all_points.append(points)
 
+    log_event("Creating point cloud")
     pcd = o3d.geometry.PointCloud()
     all_ = o3d.core.concatenate(all_points, axis=0).numpy()
-    # print(np.array(all_).shape)
     points = np.array(all_)
 
     # Sample the first point cloud with a specific random seed
+    log_event("Sampling the first point cloud with a specific random seed")
     sampled_points_1 = sample_points_with_seed(points, num_train, seed=42)
+    log_event("Creating first point cloud")
     sampled_pcd_1 = o3d.geometry.PointCloud()
+    log_event("Assigning points for first point cloud")
     sampled_pcd_1.points = o3d.utility.Vector3dVector(sampled_points_1)
 
+    log_event("Sampling the second point cloud with a specific random seed")
     sampled_points_2 = sample_points_with_seed(points, num_test, seed=100)
+    log_event("Creating second point cloud")
     sampled_pcd_2 = o3d.geometry.PointCloud()
+    log_event("Assigning points for second point cloud")
     sampled_pcd_2.points = o3d.utility.Vector3dVector(sampled_points_2)
 
     # Save the sampled point cloud to a file (optional)
+    log_event("Saving the sampled point cloud")
     o3d.io.write_point_cloud(
         common.MODELS_PATH
         + "/train/"
