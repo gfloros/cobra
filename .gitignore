@@ -6,3 +6,6 @@
 /data/est_models/
 /data/models/original/
 /data/models/normalized/
+/data/models/camera_positions.ply
+/screenshots/
+.DS_Store
