@@ -7,7 +7,7 @@ import pandas as pd
 import shutil
 import tqdm
 from utils.io import make_dir
-from utils.model_3d import load_point_cloud, fitModel2UnitSphere
+from utils.model_3d import load_point_cloud
 from os.path import join as jn
 import time
 from utils.report import create_and_render_tables

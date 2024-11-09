@@ -10,7 +10,6 @@ import glob
 import os
 from utils.io import loadEstimatorResults
 from pose_vis.Renderer import Renderer
-from utils.model_3d import load_mesh
 from pose_vis.utils import load_model
 
 @dataclasses.dataclass
@@ -66,8 +65,6 @@ def run(args):
         renderer.load_shaders("./utils/vis/shaders/basic_lighting_vrt.txt",
                             "./utils/vis/shaders/basic_lighting.txt",
                             None)
-        #vertices, indices = load_mesh(jn(common.MODELS_PATH,'normalized',args.class_name,args.model+'.ply'))
-        #vertices, indices = np.asarray(vertices), np.asarray(indices)
         vertices, indices = load_model(jn(common.MODELS_PATH,'normalized',args.class_name,args.model+'.ply'))
         renderer.create_data_buffers(vertices,indices,attrs=[2,3,4])
         renderer.CreateFramebuffer(GL_RGB32F,GL_RGBA,GL_FLOAT)

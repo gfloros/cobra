@@ -6,7 +6,6 @@ import dataclasses
 import common
 from utils.io import stdout_redirected, make_dir
 from utils.vis_utils import *
-from utils.model_3d import fitModel2UnitSphere
 from os.path import join as jn
 import glob
 import tqdm
@@ -41,7 +40,11 @@ def run(args):
             points = np.asarray(pcd_.points)
 
             # Fit the model to the unit sphere
-            points = fitModel2UnitSphere(points)
+            pcd_.translate(np.array([0.0, 0.0, 0.0]), relative=False)
+            distances = np.linalg.norm(np.asarray(pcd_.vertices), axis=1)
+            scale = np.max(distances, axis=0) * common.SCALING_FACTOR
+            pcd_.scale(1 / scale, center=pcd_.get_center())
+            points = np.asarray(pcd_.points)
 
             # Apply some rotations to the point cloud
             rotation = np.array([[1, 0, 0], [0, 0, 1], [0, 1, 0]])
